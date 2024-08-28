@@ -1,0 +1,199 @@
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    
+    <modelVersion>4.0.0</modelVersion>
+    <groupId>com.ericsson.nms.litp.3pps</groupId>
+    <artifactId>Liblogging_Builder</artifactId>
+    <packaging>pom</packaging>
+    <name>[${project.artifactId}] Generate RPMs</name>
+    <description>LITP Liblogging</description>
+    
+    <parent>
+        <groupId>com.ericsson.nms.litp.3pps</groupId>
+        <artifactId>EXTRlitpliblogging</artifactId>
+        <version>2.2.4-SNAPSHOT</version>
+    </parent>
+
+    <build>
+        <plugins>
+
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-dependency-plugin</artifactId>
+                <version>2.5</version>
+                <executions>
+                    
+                    <execution>
+			            <!-- chrpath is required for liblogging as build dependency -->
+                        <id>unpack_chrpath</id>
+                        <phase>initialize</phase>
+                        <goals>
+                            <goal>unpack</goal>
+                        </goals>
+                        <configuration>
+                            <artifactItems>
+                                <artifactItem>
+                                    <groupId>slackbuilds</groupId>
+                                    <artifactId>chrpath</artifactId>
+                                    <version>${chrpath.version}</version>
+                                    <type>tar.gz</type>
+                                    <overWrite>true</overWrite>
+                                    <outputDirectory>
+                                        ${project.build.directory}/dependency/
+                                    </outputDirectory>
+                                </artifactItem>
+                            </artifactItems>
+                            <localRepositoryDirectory>
+                                ${basedir}/localrepo
+                            </localRepositoryDirectory>
+                        </configuration>
+                    </execution>
+
+                    <execution>
+                        <!-- liblogging is the target tarball we want to build -->
+                        <id>unpack_liblogging</id>
+                        <phase>initialize</phase>
+                        <goals>
+                            <goal>copy</goal>
+                        </goals>
+                        <configuration>
+                            <artifactItems>
+                                <artifactItem>
+                                    <groupId>com.github</groupId>
+                                    <artifactId>liblogging</artifactId>
+                                    <version>${liblogging.version}</version>
+                                    <type>tar.gz</type>
+                                    <overWrite>true</overWrite>
+                                    <outputDirectory>
+                                        ${project.build.directory}/SOURCES/
+                                    </outputDirectory>
+                                </artifactItem>
+                            </artifactItems>
+                        </configuration>
+                    </execution>
+                </executions>
+            </plugin>
+
+            <plugin>
+                <groupId>org.codehaus.mojo</groupId>
+                <artifactId>exec-maven-plugin</artifactId>
+                <version>1.2.1</version>
+                <executions>
+                    
+                    <execution>
+                        <id>create-SPEC-directory</id>
+                        <phase>initialize</phase>
+                        <goals>
+                            <goal>exec</goal>
+                        </goals>
+                        <configuration>
+                            <executable>mkdir</executable>
+                            <arguments>
+                                <argument>-p</argument>
+                                <argument>${project.build.directory}/SPEC</argument>
+                            </arguments>
+                        </configuration>
+                    </execution>
+                    
+                    <execution>
+                        <id>configure-chrpath</id>
+                        <phase>generate-sources</phase>
+                        <goals>
+                            <goal>exec</goal>
+                        </goals>
+                        <configuration>
+                            <executable>./configure</executable>
+                            <workingDirectory>
+                                ${project.build.directory}/dependency/chrpath-${chrpath.version}/
+                            </workingDirectory>
+                            <arguments>
+                                <argument>
+                                    --prefix=${project.build.directory}/dependency/chrpath-${chrpath.version}/build
+                                </argument>
+                            </arguments>
+                        </configuration>
+                    </execution>
+                    
+                    <execution>
+                        <id>compile-chrpath</id>
+                        <phase>generate-sources</phase>
+                        <goals>
+                            <goal>exec</goal>
+                        </goals>
+                        <configuration>
+                            <executable>make</executable>
+                            <workingDirectory>
+                                ${project.build.directory}/dependency/chrpath-${chrpath.version}/
+                            </workingDirectory>
+                        </configuration>
+                    </execution>
+                    
+                    <execution>
+                        <id>install-chrpath</id>
+                        <phase>generate-sources</phase>
+                        <goals>
+                            <goal>exec</goal>
+                        </goals>
+                        <configuration>
+                            <executable>make</executable>
+                            <workingDirectory>
+                                ${project.build.directory}/dependency/chrpath-${chrpath.version}/
+                            </workingDirectory>
+                            <arguments>
+                                <argument>install</argument>
+                            </arguments>
+                        </configuration>
+                    </execution>
+                    
+                    <execution>
+                        <id>copy-liblogging.spec</id>
+                        <phase>generate-resources</phase>
+                        <goals>
+                            <goal>exec</goal>
+                        </goals>
+                        <configuration>
+                            <environmentVariables>
+                                <TMPDIR>
+                                    ${project.build.directory}
+                                </TMPDIR>
+                            </environmentVariables>
+                            <executable>cp</executable>
+                            <arguments>
+                                <argument>${basedir}/src/specs/liblogging.spec</argument>
+                                <argument>${project.build.directory}/SPEC/${spec.path}</argument>
+                            </arguments>
+                        </configuration>
+                    </execution>
+                    
+                    <execution>
+                        <id>run-rpm-build</id>
+                        <phase>prepare-package</phase>
+                        <goals>
+                            <goal>exec</goal>
+                        </goals>
+                        <configuration>
+                            <environmentVariables>
+                                <TMPDIR>
+                                    ${project.build.directory}
+                                </TMPDIR>
+                                <PATH>
+                                    ${PATH}:${basedir}/target/dependency/chrpath-${chrpath.version}/build/bin/
+                                </PATH>
+                            </environmentVariables>
+                            <executable>
+                                ${basedir}/src/scripts/define-rpm-parameters.sh
+                            </executable>
+                            <workingDirectory>${project.build.directory}</workingDirectory>
+                            <arguments>
+                                <argument>${spec.path}</argument>
+                                <argument>${rpm.version}</argument>
+                                <argument>${ericsson.rstate}</argument>
+                            </arguments>
+                        </configuration>
+                    </execution>
+                
+                </executions>
+            </plugin>
+        
+        </plugins>
+    </build>
+</project>
